@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FG Dashboard — Cabal TH</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap');
+:root {
+  --bg:#F0F4F8; --surface:#fff; --surface2:#E8EFF7; --border:#D1DCE8;
+  --text:#1E2D3D; --muted:#6B7E93; --accent:#3B7DD8;
+  --spend:#E05C5C; --gain:#3DAA72; --radius:12px;
+  --shadow:0 2px 12px rgba(30,45,61,.08);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'IBM Plex Sans Thai',sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.6;min-height:100vh;}
+
+/* NAV */
+.nav{background:#1E2D3D;padding:0 24px;display:flex;align-items:center;justify-content:space-between;height:52px;gap:12px;flex-wrap:wrap;}
+.nav-title{color:#fff;font-size:15px;font-weight:700;white-space:nowrap;}
+.nav-title span{color:#6EE7A0;}
+.nav-months{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+.month-btn{background:rgba(255,255,255,.1);color:rgba(255,255,255,.75);border:none;border-radius:6px;padding:4px 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .15s;}
+.month-btn:hover{background:rgba(255,255,255,.2);color:#fff;}
+.month-btn.active{background:var(--accent);color:#fff;}
+.month-btn.del{background:rgba(224,92,92,.25);color:#ffaaaa;padding:4px 8px;font-size:11px;}
+.month-btn.del:hover{background:rgba(224,92,92,.5);}
+
+/* UPLOAD ZONE */
+.upload-zone{max-width:640px;margin:60px auto;text-align:center;padding:0 16px;}
+.drop-box{border:2px dashed var(--border);border-radius:16px;padding:48px 32px;background:var(--surface);cursor:pointer;transition:all .2s;}
+.drop-box:hover,.drop-box.drag{border-color:var(--accent);background:#EEF4FF;}
+.drop-icon{font-size:40px;margin-bottom:12px;}
+.drop-title{font-size:17px;font-weight:700;color:var(--text);margin-bottom:6px;}
+.drop-sub{font-size:13px;color:var(--muted);}
+.drop-sub b{color:var(--accent);}
+#fileInput{display:none;}
+.upload-btn{display:inline-block;margin-top:18px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:10px 28px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;}
+.upload-btn:hover{background:#2d6bc4;}
+.no-data-msg{color:var(--muted);font-size:13px;margin-top:16px;}
+
+/* MAIN */
+.main{max-width:1140px;margin:0 auto;padding:24px 16px 60px;}
+
+/* HEADER */
+.dash-header{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:24px;}
+.dash-title{font-size:20px;font-weight:700;}
+.dash-sub{font-size:13px;color:var(--muted);margin-top:2px;}
+.badge{background:var(--accent);color:#fff;font-size:12px;font-weight:600;padding:4px 12px;border-radius:20px;}
+
+/* GRID */
+.grid{display:grid;gap:16px;}
+.g3{grid-template-columns:repeat(3,1fr);}
+.g2{grid-template-columns:1fr 1fr;}
+.g1{grid-template-columns:1fr;}
+
+/* CARD */
+.card{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px 22px;border:1px solid var(--border);}
+.card-label{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;}
+.card-value{font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:600;line-height:1.2;}
+.card-value.spend{color:var(--spend);}
+.card-value.gain{color:var(--gain);}
+.card-value.net{color:var(--accent);}
+.card-note{font-size:12px;color:var(--muted);margin-top:4px;}
+
+/* SECTION */
+.sec{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:8px;margin:24px 0 12px;}
+.sec::after{content:'';flex:1;height:1px;background:var(--border);}
+
+/* CHART CARD */
+.cc{background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px 22px;border:1px solid var(--border);}
+.cc-title{font-size:14px;font-weight:600;margin-bottom:2px;}
+.cc-sub{font-size:12px;color:var(--muted);margin-bottom:14px;}
+
+/* TABLE */
+.rt{width:100%;border-collapse:collapse;}
+.rt th{font-size:11px;font-weight:600;color:var(--muted);text-align:left;padding:6px 10px;border-bottom:2px solid var(--border);white-space:nowrap;}
+.rt th.r{text-align:right;}
+.rt td{padding:8px 10px;border-bottom:1px solid var(--surface2);vertical-align:middle;}
+.rt tr:last-child td{border-bottom:none;}
+.rt tr:hover td{background:var(--surface2);}
+.rn{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);width:28px;}
+.rname{font-weight:500;font-size:12px;}
+.rnote{font-size:11px;color:var(--muted);}
+.rv{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;text-align:right;white-space:nowrap;}
+.rv.s{color:var(--spend);}
+.rv.g{color:var(--gain);}
+.rp{text-align:right;width:100px;}
+.pbar-w{width:100%;height:5px;background:var(--surface2);border-radius:3px;overflow:hidden;margin-top:3px;}
+.pbar{height:100%;border-radius:3px;}
+.pbar.s{background:var(--spend);}
+.pbar.g{background:var(--gain);}
+.ptxt{font-size:10px;color:var(--muted);text-align:right;}
+.tot td{background:var(--surface2)!important;font-weight:700;border-top:2px solid var(--border);}
+
+/* NET BANNER */
+.net-card{background:linear-gradient(135deg,#1E2D3D,#2E4A6B);color:#fff;border-radius:var(--radius);padding:22px 26px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;box-shadow:0 4px 20px rgba(30,45,61,.18);margin-top:24px;}
+.nl{font-size:13px;opacity:.7;margin-bottom:4px;}
+.nv{font-family:'IBM Plex Mono',monospace;font-size:26px;font-weight:700;color:#6EE7A0;}
+.nm{font-size:12px;opacity:.5;margin-top:4px;}
+
+/* TOAST */
+.toast{position:fixed;bottom:24px;right:24px;background:#1E2D3D;color:#fff;border-radius:10px;padding:12px 20px;font-size:13px;font-weight:500;box-shadow:0 4px 20px rgba(0,0,0,.25);transform:translateY(80px);opacity:0;transition:all .3s;z-index:999;}
+.toast.show{transform:translateY(0);opacity:1;}
+
+@media(max-width:700px){.g3,.g2{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="nav">
+  <div class="nav-title">📊 FG Dashboard <span>Cabal TH</span></div>
+  <div class="nav-months" id="navMonths">
+    <span style="color:rgba(255,255,255,.4);font-size:12px;">ยังไม่มีข้อมูล</span>
+  </div>
+</nav>
+
+<!-- UPLOAD SCREEN -->
+<div id="uploadScreen">
+  <div class="upload-zone">
+    <div class="drop-box" id="dropBox">
+      <div class="drop-icon">📂</div>
+      <div class="drop-title">อัปโหลดไฟล์ FG Summary</div>
+      <div class="drop-sub">ลากไฟล์ <b>.xlsx</b> มาวางที่นี่ หรือคลิกเพื่อเลือกไฟล์<br><br>รองรับไฟล์ที่มี sheet <b>"Supply Log_MONTH YEAR"</b><br>ระบบจะเก็บข้อมูลแยกเป็นรายเดือนอัตโนมัติ</div>
+      <button class="upload-btn" onclick="document.getElementById('fileInput').click()">เลือกไฟล์</button>
+    </div>
+    <input type="file" id="fileInput" accept=".xlsx,.xls">
+    <div class="no-data-msg" id="noDataMsg"></div>
+  </div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboard" style="display:none;">
+  <div class="main">
+    <div class="dash-header">
+      <div>
+        <div class="dash-title" id="dashTitle">FG Usage Summary</div>
+        <div class="dash-sub" id="dashSub">Cabal Online TH</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <button class="upload-btn" style="margin:0;padding:7px 16px;font-size:12px;" onclick="document.getElementById('fileInput').click()">+ เพิ่มเดือนใหม่</button>
+        <button class="upload-btn" style="margin:0;padding:7px 16px;font-size:12px;background:#E05C5C;" onclick="deleteCurrentMonth()">🗑 ลบเดือนนี้</button>
+      </div>
+    </div>
+
+    <!-- KPI -->
+    <div class="grid g3" id="kpiCards"></div>
+
+    <!-- Daily -->
+    <div class="sec">📈 แนวโน้มรายวัน</div>
+    <div class="grid g1">
+      <div class="cc">
+        <div class="cc-title">NET FG รายวัน</div>
+        <div class="cc-sub">แท่งเขียว = เข้ามาก / แท่งแดง = ออกมาก</div>
+        <div style="height:200px;"><canvas id="dailyChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Spend Charts -->
+    <div class="sec">🔴 FG ระบายออก</div>
+    <div class="grid g2">
+      <div class="cc">
+        <div class="cc-title">สัดส่วน Top 5</div>
+        <div class="cc-sub">% ของ FG ที่ใช้ไปทั้งหมด</div>
+        <div style="height:210px;"><canvas id="spendPie"></canvas></div>
+      </div>
+      <div class="cc">
+        <div class="cc-title">Top 10 เปรียบเทียบ</div>
+        <div class="cc-sub">หน่วย FG</div>
+        <div style="height:210px;"><canvas id="spendBar"></canvas></div>
+      </div>
+    </div>
+
+    <!-- All spend bar -->
+    <div class="grid g1" style="margin-top:16px;">
+      <div class="cc">
+        <div class="cc-title">FG ระบาย — ทุกประเภท</div>
+        <div class="cc-sub">เรียงจากมากสุด</div>
+        <div style="height:500px;"><canvas id="allBar"></canvas></div>
+      </div>
+    </div>
+
+    <!-- All spend table -->
+    <div class="grid g1" style="margin-top:16px;">
+      <div class="cc">
+        <div class="cc-title">📋 ลักษณะการใช้งาน FG — ครบทุกประเภท</div>
+        <div class="cc-sub">เรียงจากมากสุด</div>
+        <table class="rt">
+          <thead><tr>
+            <th style="width:32px">#</th>
+            <th>ลักษณะการใช้งาน</th>
+            <th>Note</th>
+            <th class="r">FG รวม</th>
+            <th class="r" style="width:120px">สัดส่วน</th>
+          </tr></thead>
+          <tbody id="allSpendBody"></tbody>
+          <tfoot><tr class="tot">
+            <td colspan="3"><strong>รวม FG ระบายทั้งหมด</strong></td>
+            <td class="rv s" id="totalSpendCell"></td>
+            <td></td>
+          </tr></tfoot>
+        </table>
+      </div>
+    </div>
+
+    <!-- Gain -->
+    <div class="sec">🟢 FG เพิ่มเข้า</div>
+    <div class="grid g2">
+      <div class="cc">
+        <div class="cc-title">สัดส่วนแหล่งที่มา</div>
+        <div class="cc-sub">% ของ FG ที่ได้รับทั้งหมด</div>
+        <div style="height:200px;"><canvas id="gainPie"></canvas></div>
+      </div>
+      <div class="cc">
+        <div class="cc-title">🏆 อันดับ FG เพิ่มเข้า</div>
+        <div class="cc-sub">&nbsp;</div>
+        <table class="rt">
+          <thead><tr>
+            <th style="width:32px">#</th><th>แหล่งที่มา</th>
+            <th class="r">FG รวม</th>
+            <th class="r" style="width:100px">สัดส่วน</th>
+          </tr></thead>
+          <tbody id="gainBody"></tbody>
+          <tfoot><tr class="tot">
+            <td colspan="2"><strong>รวม FG เพิ่มทั้งหมด</strong></td>
+            <td class="rv g" id="totalGainCell"></td><td></td>
+          </tr></tfoot>
+        </table>
+      </div>
+    </div>
+
+    <!-- Net -->
+    <div class="net-card">
+      <div>
+        <div class="nl">⚖️ NET FG Balance</div>
+        <div class="nv" id="netVal">—</div>
+        <div class="nm" id="netMeta">—</div>
+      </div>
+      <div style="text-align:right">
+        <div class="nl">TopUp coverage</div>
+        <div style="font-size:30px;font-weight:700;color:#fff;" id="coveragePct">—</div>
+        <div class="nm">FG TopUp vs FG ที่ใช้ไป</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+// STORAGE
+// ============================================================
+const STORE_KEY = 'fg_dashboard_v1';
+
+function loadStore() {
+  try { return JSON.parse(localStorage.getItem(STORE_KEY)) || {}; }
+  catch { return {}; }
+}
+function saveStore(data) {
+  localStorage.setItem(STORE_KEY, JSON.stringify(data));
+}
+
+// ============================================================
+// CHART instances (destroy before re-create)
+// ============================================================
+const charts = {};
+function makeChart(id, cfg) {
+  if (charts[id]) charts[id].destroy();
+  charts[id] = new Chart(document.getElementById(id), cfg);
+}
+
+// ============================================================
+// FORMAT
+// ============================================================
+function fmt(n) { return Math.abs(n).toLocaleString('en-US'); }
+function sign(n) { return n >= 0 ? '+' : '-'; }
+
+// ============================================================
+// PARSE XLSX → structured data
+// ============================================================
+const NOTE_MAP = {
+  'BingoRefresh(Event)':'รีกระดานบิงโก','RandomBoxV2BoxOpen(Forcegem)':'Mystery Box',
+  'InGameCashShop':'Cash Shop','EventPassPrem':'Event Pass Premium',
+  'MissionWarExpReward':'เพิ่ม exp หลังจบวอร์','MagicTechTuningReset':'Artifact',
+  'BeadCustom':'ถั่ว','WarpToCoordinate':'วาร์ป','OddCircle':'ฟื้นในดัน',
+  'PlatinumBuffSvc':'Platinum Buff','UseForcegemPackage':'ซื้อ FG Package (TopUp)',
+  'ItemCollectionForcegemReward':'รางวัล Item Collection',
+  'GetForcegem(From Achievement)':'Achievement reward',
+  'SecretShopRefresh':'รีเฟรช Secret Shop','QuestDungeonReset':'รีเซ็ต Quest Dungeon',
+  'MythLevelReset':'รีเซ็ต Myth Level','HonorMedalMasteryReset':'รีเซ็ต Honor Medal',
+  'DungeonEntry':'เข้าดันเจี้ยน',
+};
+
+function nameFromBracket(s) {
+  if (!s) return '';
+  const m = s.toString().match(/\[(.+?)\]/);
+  return m ? m[1] : s.toString();
+}
+
+function parseSheet(ws, monthLabel) {
+  const rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:null });
+
+  let hdrRow = -1;
+  for (let i = 0; i < rows.length; i++) {
+    if (rows[i] && rows[i][0] === 'DateTime') { hdrRow = i; break; }
+  }
+  if (hdrRow < 0) return null;
+
+  const hdr = rows[hdrRow];
+  const colKind = hdr.indexOf('Kind');
+  const colType = hdr.indexOf('Type');
+  const colAll  = hdr.findIndex(h => h && h.toString().includes('ALL'));
+
+  const totals = {}, dailyMap = {}, dailyDates = [];
+
+  for (let r = hdrRow + 1; r < rows.length; r++) {
+    const row = rows[r];
+    if (!row || !row[0]) continue;
+    const dateStr = row[0].toString().slice(0,10);
+    const kind = nameFromBracket(row[colKind]);
+    const type = nameFromBracket(row[colType]);
+    const val  = parseFloat(row[colAll]) || 0;
+    if (!val) continue;
+    const name = kind === 'UseForcegemContents' ? type : kind;
+    if (!name) continue;
+    totals[name] = (totals[name] || 0) + val;
+    if (!dailyMap[dateStr]) { dailyMap[dateStr] = 0; dailyDates.push(dateStr); }
+    dailyMap[dateStr] += val;
+  }
+
+  const uniqueDates = [...new Set(dailyDates)].sort();
+  const spend = Object.entries(totals).filter(([,v])=>v<0)
+    .sort((a,b)=>a[1]-b[1]).map(([n,v])=>({name:n, val:Math.abs(v), note:NOTE_MAP[n]||''}));
+  const gain  = Object.entries(totals).filter(([,v])=>v>0)
+    .sort((a,b)=>b[1]-a[1]).map(([n,v])=>({name:n, val:v, note:NOTE_MAP[n]||''}));
+
+  return {
+    monthLabel,
+    spend, gain,
+    totalSpend: spend.reduce((s,d)=>s+d.val,0),
+    totalGain:  gain.reduce((s,d)=>s+d.val,0),
+    dailyLabels: uniqueDates.map(d=>d.slice(5)),
+    dailyNet:    uniqueDates.map(d=>dailyMap[d]),
+  };
+}
+
+// Returns array of parsed month objects (one per matching sheet)
+function parseXlsx(buffer) {
+  const wb = XLSX.read(buffer, { type:'array' });
+  const logSheets = wb.SheetNames.filter(n => n.startsWith('Supply Log'));
+  if (!logSheets.length) throw new Error('ไม่พบ sheet "Supply Log_..." ในไฟล์นี้');
+
+  const results = [];
+  for (const sheetName of logSheets) {
+    const label = sheetName.replace('Supply Log_','').trim();
+    const parsed = parseSheet(wb.Sheets[sheetName], label);
+    if (parsed) results.push(parsed);
+  }
+  if (!results.length) throw new Error('ไม่สามารถอ่านข้อมูลจาก sheet ได้');
+  return results;
+}
+
+// ============================================================
+// RENDER DASHBOARD
+// ============================================================
+Chart.defaults.font.family = "'IBM Plex Sans Thai', sans-serif";
+Chart.defaults.color = '#6B7E93';
+
+let currentMonth = null;
+
+function renderDashboard(data) {
+  const { monthLabel, spend, gain, totalSpend, totalGain, dailyLabels, dailyNet } = data;
+  const net = totalGain - totalSpend;
+
+  document.getElementById('dashTitle').textContent = `📊 FG Usage Summary — ${monthLabel}`;
+  document.getElementById('dashSub').textContent = `Cabal Online TH · ${dailyLabels.length} วัน`;
+
+  // KPI
+  document.getElementById('kpiCards').innerHTML = `
+    <div class="card"><div class="card-label">🔴 FG ระบายออกทั้งหมด</div>
+      <div class="card-value spend">-${fmt(totalSpend)}</div>
+      <div class="card-note">${spend.length} ประเภทการใช้งาน</div></div>
+    <div class="card"><div class="card-label">🟢 FG เพิ่มเข้าทั้งหมด</div>
+      <div class="card-value gain">+${fmt(totalGain)}</div>
+      <div class="card-note">${gain.length} แหล่งที่มา</div></div>
+    <div class="card"><div class="card-label">⚖️ NET Balance</div>
+      <div class="card-value net">${sign(net)}${fmt(net)}</div>
+      <div class="card-note">${net >= 0 ? 'Surplus ✅' : 'Deficit ⚠️'}</div></div>`;
+
+  // NET banner
+  document.getElementById('netVal').textContent = `${sign(net)}${fmt(net)} FG`;
+  document.getElementById('netMeta').textContent = net >= 0 ? 'FG เข้ามากกว่าออก · Surplus month' : 'FG ออกมากกว่าเข้า · Deficit month';
+  const cov = totalSpend > 0 ? (totalGain / totalSpend * 100).toFixed(1) : '—';
+  document.getElementById('coveragePct').textContent = cov + '%';
+
+  // Daily chart
+  makeChart('dailyChart', {
+    type:'bar', data:{ labels:dailyLabels, datasets:[{
+      data:dailyNet, borderRadius:3, borderWidth:1,
+      backgroundColor:dailyNet.map(v=>v>=0?'rgba(61,170,114,.75)':'rgba(224,92,92,.75)'),
+      borderColor:dailyNet.map(v=>v>=0?'#3DAA72':'#E05C5C'),
+    }]},
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:ctx=>' '+(ctx.raw>=0?'+':'')+fmt(ctx.raw)+' FG'}}},
+      scales:{
+        x:{grid:{display:false}, ticks:{font:{size:10},maxRotation:45}},
+        y:{grid:{color:'#E8EFF7'}, ticks:{callback:v=>Math.abs(v)>=1e6?(v/1e6).toFixed(0)+'M':(v/1e3).toFixed(0)+'K'}}
+      }
+    }
+  });
+
+  // Spend pie (top 5)
+  const top5 = spend.slice(0,5);
+  const other = totalSpend - top5.reduce((a,b)=>a+b.val,0);
+  const SCOLS = ['#E05C5C','#E87B4E','#D4952A','#8E9BAD','#B0BEC5','#E0E7EF'];
+  makeChart('spendPie',{
+    type:'doughnut',
+    data:{ labels:[...top5.map(d=>d.name.length>16?d.name.slice(0,16)+'…':d.name),'อื่นๆ'],
+      datasets:[{data:[...top5.map(d=>d.val),other],backgroundColor:SCOLS,borderWidth:2,borderColor:'#fff'}]},
+    options:{ responsive:true,maintainAspectRatio:false,
+      plugins:{ legend:{position:'bottom',labels:{font:{size:10},padding:8,boxWidth:10}},
+        tooltip:{callbacks:{label:ctx=>` ${(ctx.parsed/totalSpend*100).toFixed(1)}%`}}}}
+  });
+
+  // Spend bar top 10
+  const top10 = spend.slice(0,10);
+  makeChart('spendBar',{
+    type:'bar',
+    data:{ labels:top10.map(d=>d.name.length>16?d.name.slice(0,16)+'…':d.name),
+      datasets:[{data:top10.map(d=>d.val),backgroundColor:SCOLS.slice(0,10).concat(SCOLS),borderRadius:4}]},
+    options:{ indexAxis:'y', responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` -${fmt(ctx.raw)} FG`}}},
+      scales:{
+        x:{grid:{color:'#E8EFF7'},ticks:{callback:v=>v>=1e6?(v/1e6).toFixed(0)+'M':v>=1e3?(v/1e3).toFixed(0)+'K':v}},
+        y:{grid:{display:false},ticks:{font:{size:10}}}
+      }
+    }
+  });
+
+  // All bar
+  const allCols = spend.map((_,i)=>{
+    const t=i/(Math.max(spend.length-1,1));
+    return `rgba(${Math.round(224+(84-224)*t)},${Math.round(92+(107-92)*t)},${Math.round(92+(143-92)*t)},.82)`;
+  });
+  const allH = Math.max(spend.length * 18, 300);
+  document.querySelector('#allBar').parentElement.style.height = allH+'px';
+  makeChart('allBar',{
+    type:'bar',
+    data:{ labels:spend.map(d=>d.name.length>22?d.name.slice(0,22)+'…':d.name),
+      datasets:[{data:spend.map(d=>d.val),backgroundColor:allCols,borderRadius:3}]},
+    options:{ indexAxis:'y', responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` -${fmt(ctx.raw)} FG (${(ctx.raw/totalSpend*100).toFixed(2)}%)`}}},
+      scales:{
+        x:{grid:{color:'#E8EFF7'},ticks:{callback:v=>v>=1e6?(v/1e6).toFixed(0)+'M':v>=1e3?(v/1e3).toFixed(0)+'K':v}},
+        y:{grid:{display:false},ticks:{font:{size:10}}}
+      }
+    }
+  });
+
+  // All spend table
+  document.getElementById('totalSpendCell').textContent = `-${fmt(totalSpend)}`;
+  const asb = document.getElementById('allSpendBody');
+  asb.innerHTML = '';
+  spend.forEach((d,i)=>{
+    const pct=(d.val/totalSpend*100); const ps=pct>=0.1?pct.toFixed(1):pct.toFixed(2);
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td class="rn">${i+1}</td>
+      <td><div class="rname">${d.name}</div></td>
+      <td><div class="rnote">${d.note}</div></td>
+      <td class="rv s">-${fmt(d.val)}</td>
+      <td class="rp"><div class="ptxt">${ps}%</div>
+        <div class="pbar-w"><div class="pbar s" style="width:${Math.max(pct,0.5).toFixed(1)}%"></div></div></td>`;
+    asb.appendChild(tr);
+  });
+
+  // Gain pie
+  const GCOLS=['#3DAA72','#6EC89A','#A8E4C3','#CCF0DF'];
+  makeChart('gainPie',{
+    type:'doughnut',
+    data:{ labels:gain.map(d=>d.name.length>20?d.name.slice(0,20)+'…':d.name),
+      datasets:[{data:gain.map(d=>d.val),backgroundColor:GCOLS,borderWidth:2,borderColor:'#fff'}]},
+    options:{ responsive:true,maintainAspectRatio:false,
+      plugins:{ legend:{position:'bottom',labels:{font:{size:10},padding:8,boxWidth:10}},
+        tooltip:{callbacks:{label:ctx=>` ${(ctx.parsed/totalGain*100).toFixed(2)}%`}}}}
+  });
+
+  // Gain table
+  document.getElementById('totalGainCell').textContent = `+${fmt(totalGain)}`;
+  const gb = document.getElementById('gainBody');
+  gb.innerHTML='';
+  gain.forEach((d,i)=>{
+    const pct=(d.val/totalGain*100);
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td class="rn">${['🥇','🥈','🥉'][i]||i+1+'.'}</td>
+      <td><div class="rname">${d.name}</div><div class="rnote">${d.note}</div></td>
+      <td class="rv g">+${fmt(d.val)}</td>
+      <td class="rp"><div class="ptxt">${pct>=0.1?pct.toFixed(1):pct.toFixed(3)}%</div>
+        <div class="pbar-w"><div class="pbar g" style="width:${Math.min(Math.max(pct,0.5),100).toFixed(1)}%"></div></div></td>`;
+    gb.appendChild(tr);
+  });
+}
+
+// ============================================================
+// MONTH NAV
+// ============================================================
+const MONTH_ORDER = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+function monthSortKey(label) {
+  const parts = label.trim().split(/[\s\/\-]+/);
+  const year = parts.find(p => /^\d{4}$/.test(p)) || '0000';
+  for (let i = 0; i < parts.length; i++) {
+    const p = parts[i].toLowerCase();
+    // exact match
+    let mIdx = MONTH_ORDER.findIndex(m => m.toLowerCase() === p);
+    // prefix match (min 3 chars) — handles "Febuary", "Sept", etc.
+    if (mIdx < 0 && p.length >= 3) {
+      mIdx = MONTH_ORDER.findIndex(m => m.toLowerCase().startsWith(p.slice(0,3)));
+    }
+    if (mIdx >= 0) return parseInt(year) * 100 + mIdx;
+  }
+  // numeric fallback "2026/05"
+  const numMatch = label.match(/(\d{4})[\/\-\s](\d{1,2})/);
+  if (numMatch) return parseInt(numMatch[1]) * 100 + parseInt(numMatch[2]);
+  return 0;
+}
+
+function renderNav() {
+  const store = loadStore();
+  const keys  = Object.keys(store).sort((a,b) => monthSortKey(a) - monthSortKey(b));
+  const nav   = document.getElementById('navMonths');
+  if (!keys.length) {
+    nav.innerHTML = '<span style="color:rgba(255,255,255,.4);font-size:12px;">ยังไม่มีข้อมูล</span>';
+    return;
+  }
+  nav.innerHTML = keys.map(k=>`<button class="month-btn ${k===currentMonth?'active':''}" onclick="switchMonth('${k}')">${k}</button>`).join('');
+}
+
+function switchMonth(key) {
+  const store = loadStore();
+  if (!store[key]) return;
+  currentMonth = key;
+  renderNav();
+  renderDashboard(store[key]);
+  document.getElementById('uploadScreen').style.display='none';
+  document.getElementById('dashboard').style.display='block';
+}
+
+function deleteCurrentMonth() {
+  if (!currentMonth) return;
+  if (!confirm(`ลบข้อมูล "${currentMonth}" ออกจาก Dashboard?`)) return;
+  const store = loadStore();
+  delete store[currentMonth];
+  saveStore(store);
+  const keys = Object.keys(store).sort((a,b) => monthSortKey(a) - monthSortKey(b));
+  if (keys.length) { switchMonth(keys[keys.length-1]); }
+  else {
+    currentMonth = null;
+    document.getElementById('dashboard').style.display='none';
+    document.getElementById('uploadScreen').style.display='block';
+    renderNav();
+  }
+  showToast(`ลบ "${currentMonth||'เดือนนี้'}" แล้ว`);
+}
+
+// ============================================================
+// FILE HANDLING
+// ============================================================
+function handleFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const months = parseXlsx(new Uint8Array(e.target.result));
+      const store  = loadStore();
+      let added = 0, updated = 0;
+      months.forEach(data => {
+        const existed = !!store[data.monthLabel];
+        store[data.monthLabel] = data;
+        existed ? updated++ : added++;
+      });
+      saveStore(store);
+      // Switch to last month in file
+      currentMonth = months[months.length - 1].monthLabel;
+      renderNav();
+      renderDashboard(store[currentMonth]);
+      document.getElementById('uploadScreen').style.display = 'none';
+      document.getElementById('dashboard').style.display = 'block';
+      const msg = [];
+      if (added)   msg.push(`เพิ่ม ${added} เดือน`);
+      if (updated) msg.push(`อัปเดต ${updated} เดือน`);
+      showToast('✅ ' + msg.join(' · '));
+    } catch(err) {
+      showToast('❌ ' + err.message, 4000);
+      document.getElementById('noDataMsg').textContent = '⚠️ ' + err.message;
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+document.getElementById('fileInput').addEventListener('change', e => handleFile(e.target.files[0]));
+
+// Drag & Drop
+const drop = document.getElementById('dropBox');
+drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('drag'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('drag'));
+drop.addEventListener('drop', e => {
+  e.preventDefault(); drop.classList.remove('drag');
+  handleFile(e.dataTransfer.files[0]);
+});
+
+// ============================================================
+// TOAST
+// ============================================================
+function showToast(msg, dur=2500) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), dur);
+}
+
+// ============================================================
+// INIT
+// ============================================================
+(function init() {
+  const store = loadStore();
+  const keys  = Object.keys(store).sort((a,b) => monthSortKey(a) - monthSortKey(b));
+  if (keys.length) {
+    currentMonth = keys[keys.length-1];
+    renderNav();
+    renderDashboard(store[currentMonth]);
+    document.getElementById('uploadScreen').style.display='none';
+    document.getElementById('dashboard').style.display='block';
+  } else {
+    renderNav();
+  }
+})();
+</script>
+</body>
+</html>
